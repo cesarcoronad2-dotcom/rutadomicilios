@@ -1,12 +1,13 @@
 /* router.js
- * Comunicación con OSRM: API Table (matriz tiempos/distancias)
- * Implementación Fase 6. API Route queda para Fase 7.
+ * Comunicación con OSRM: API Table (matriz tiempos/distancias) y
+ * API Route (geometría real de la ruta). Fases 6 y 7.
  */
 import { coordenadasValidas } from './ubicaciones.js';
 import { ESTADO } from './pedidos.js';
 
 export const URL_BASE_OSRM = 'https://router.project-osrm.org';
 export const RUTA_TABLE = '/table/v1/driving/';
+export const RUTA_ROUTE = '/route/v1/driving/';
 export const TIMEOUT_MS = 5000; // ms
 
 export const FUENTE = {
@@ -26,11 +27,28 @@ function toNumero(n) {
   return Number.isFinite(v) ? v : NaN;
 }
 
+// Lee lat/lon de un punto admitiendo los formatos del proyecto:
+// lat/lon, latitude/longitude (GPS) y latitud/longitud (pedidos).
+function extraerLatLon(p) {
+  if (!p) return null;
+  let lat = p.lat;
+  let lon = p.lon;
+  if (typeof lat !== 'number' || typeof lon !== 'number') {
+    lat = p.latitude;
+    lon = p.longitude;
+  }
+  if (typeof lat !== 'number' || typeof lon !== 'number') {
+    lat = p.latitud;
+    lon = p.longitud;
+  }
+  lat = toNumero(lat);
+  lon = toNumero(lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  return { lat, lon };
+}
+
 function puntoValido(p) {
-  if (!p) return false;
-  const lat = toNumero(p.lat);
-  const lon = toNumero(p.lon);
-  return coordenadasValidas(lat, lon);
+  return extraerLatLon(p) !== null;
 }
 
 // Prepara lista de puntos: [origen, ...pedidos pendientes con coords válidas] (sin mutar)
@@ -39,10 +57,11 @@ export function prepararPuntos({ posicion, pedidos } = {}) {
 
   // Origen (GPS)
   if (posicion && puntoValido(posicion)) {
+    const { lat, lon } = extraerLatLon(posicion);
     lista.push({
       tipo: 'origen',
-      lat: toNumero(posicion.lat),
-      lon: toNumero(posicion.lon)
+      lat,
+      lon
     });
   }
 
@@ -53,12 +72,13 @@ export function prepararPuntos({ posicion, pedidos } = {}) {
       if (!p) continue;
       const estado = p.estado;
       if (estado && estado !== ESTADO.PENDIENTE) continue; // excluir entregados
-      if (!puntoValido(p)) continue;
+      const coords = extraerLatLon(p);
+      if (!coords) continue;
       lista.push({
         tipo: 'pedido',
         id: p.id,
-        lat: toNumero(p.lat),
-        lon: toNumero(p.lon),
+        lat: coords.lat,
+        lon: coords.lon,
         descripcion: p.descripcion || ''
       });
     }
@@ -72,15 +92,16 @@ export function construirCoordenadasOsrm(puntos = []) {
   if (!Array.isArray(puntos) || puntos.length === 0) return '';
   return puntos
     .map((pt) => {
-      const lon = toNumero(pt.lon);
-      const lat = toNumero(pt.lat);
-      return lon + ',' + lat;
+      const coords = extraerLatLon(pt);
+      if (!coords) return '';
+      return coords.lon + ',' + coords.lat;
     })
+    .filter(Boolean)
     .join(';');
 }
 
 // Distancia Haversine en metros
-function haversineMetros(aLat, aLon, bLat, bLon) {
+export function haversineMetros(aLat, aLon, bLat, bLon) {
   const R = 6371000; // metros
   const dLat = ((bLat - aLat) * Math.PI) / 180;
   const dLon = ((bLon - aLon) * Math.PI) / 180;
@@ -108,12 +129,13 @@ function matrizHaversine(puntos = []) {
   const distances = Array(n).fill().map(() => Array(n).fill(0));
 
   for (let i = 0; i < n; i++) {
-    const pi = puntos[i];
     durations[i][i] = 0;
     distances[i][i] = 0;
     for (let j = i + 1; j < n; j++) {
-      const pj = puntos[j];
-      const d = haversineMetros(pi.lat, pi.lon, pj.lat, pj.lon);
+      const a = extraerLatLon(puntos[i]);
+      const b = extraerLatLon(puntos[j]);
+      if (!a || !b) continue;
+      const d = haversineMetros(a.lat, a.lon, b.lat, b.lon);
       const t = duracionEstimadaSegundos(d);
       const dRed = Math.round(d * 1000) / 1000; // metros
       const tRed = t;
@@ -318,8 +340,159 @@ export async function calcularMatriz({
   }
 }
 
-// obtenerRuta queda para Fase 7
-export async function obtenerRuta(coordenadas) {
-  const _ = coordenadas;
-  return null;
+/**
+ * Construye URL Route v1 (lon,lat;lon,lat) con geometría GeoJSON.
+ * @param {Array<object>} puntos Puntos ordenados (origen primero).
+ */
+function construirUrlRoute(puntos = []) {
+  const coords = construirCoordenadasOsrm(puntos);
+  const base = URL_BASE_OSRM.replace(/\/$/, '');
+  return `${base}${RUTA_ROUTE}${coords}?overview=full&geometries=geojson&steps=false`;
+}
+
+/**
+ * Convierte coordenadas lon,lat (GeoJSON de OSRM) a pares [lat,lng].
+ * @param {Array<Array<number>>} coords
+ */
+function convertirGeometria(coords) {
+  return coords
+    .filter((par) => Array.isArray(par) && par.length >= 2)
+    .map((par) => [toNumero(par[1]), toNumero(par[0])])
+    .filter((par) => Number.isFinite(par[0]) && Number.isFinite(par[1]));
+}
+
+/**
+ * Geometría en línea recta entre puntos ordenados ([lat,lng]).
+ * Sirve de fallback visual cuando OSRM Route no responde.
+ */
+function lineaRecta(puntos = []) {
+  const posts = [];
+  for (let i = 0; i < puntos.length; i++) {
+    const coords = extraerLatLon(puntos[i]);
+    if (coords) {
+      posts.push([coords.lat, coords.lon]);
+    }
+  }
+  return posts;
+}
+
+/**
+ * Estima distancia total en metros a lo largo de una geometría
+ * (suma de segmentos). Para el fallback de línea recta.
+ */
+function longitudGeometria(geometria) {
+  let total = 0;
+  for (let i = 1; i < geometria.length; i++) {
+    total += haversineMetros(
+      geometria[i - 1][0],
+      geometria[i - 1][1],
+      geometria[i][0],
+      geometria[i][1]
+    );
+  }
+  return total;
+}
+
+/**
+ * Obtiene la geometría de la ruta sobre puntos YA ordenados
+ * (origen primero). OSRM Route (con duración/distancia reales) con
+ * fallback de línea recta etiquetado.
+ *
+ * @param {Array<object>} puntos Puntos ordenados: {lat, lon} mínimo.
+ * @param {Function} [fetchImpl]
+ * @returns {Promise<object>} {ok, fuente, esDistanciaPorCarretera,
+ *   geometria: Array<[lat,lng]>, distancia, duracion, warning?}
+ */
+export async function obtenerRuta(puntos, fetchImpl) {
+  const fetchFn = typeof fetchImpl === 'function' ? fetchImpl : (typeof fetch !== 'undefined' ? fetch : null);
+  const puntosValidos = lineaRecta(puntos);
+
+  if (puntosValidos.length < 2) {
+    return {
+      ok: false,
+      error: 'SIN_PUNTOS_SUFICIENTES',
+      mensaje: 'Se necesitan al menos origen y un pedido para trazar la ruta.',
+      fuente: FUENTE.HAVERSINE,
+      esDistanciaPorCarretera: false,
+      geometria: puntosValidos,
+      distancia: 0,
+      duracion: 0
+    };
+  }
+
+  if (!fetchFn) {
+    const geometria = puntosValidos;
+    return {
+      ok: true,
+      fuente: FUENTE.HAVERSINE,
+      esDistanciaPorCarretera: false,
+      geometria,
+      distancia: longitudGeometria(geometria),
+      duracion: duracionEstimadaSegundos(longitudGeometria(geometria)),
+      warning: 'FALLBACK_HAVERSINE_SIN_FETCH'
+    };
+  }
+
+  const url = construirUrlRoute(puntos);
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+  const respaldo = () => ({
+    ok: true,
+    fuente: FUENTE.HAVERSINE,
+    esDistanciaPorCarretera: false,
+    geometria: puntosValidos,
+    distancia: longitudGeometria(puntosValidos),
+    duracion: duracionEstimadaSegundos(longitudGeometria(puntosValidos)),
+    warning: null
+  });
+
+  try {
+    const res = await fetchFn(url, {
+      method: 'GET',
+      signal: controller.signal,
+      headers: { 'Accept': 'application/json' }
+    });
+
+    if (!res.ok) {
+      return { ...respaldo(), warning: 'FALLBACK_HAVERSINE_HTTP_' + res.status };
+    }
+
+    let data;
+    try {
+      data = await res.json();
+    } catch (e) {
+      return { ...respaldo(), warning: 'FALLBACK_HAVERSINE_JSON_INVALIDO' };
+    }
+
+    if (!data || data.code !== CODIGO_OSRM_OK || !Array.isArray(data.routes) || data.routes.length === 0) {
+      return { ...respaldo(), warning: 'FALLBACK_HAVERSINE_OSRM_NO_ROUTE' };
+    }
+
+    const ruta = data.routes[0];
+    const geometria = convertirGeometria(ruta.geometry && ruta.geometry.coordinates);
+
+    if (geometria.length < 2) {
+      return { ...respaldo(), warning: 'FALLBACK_HAVERSINE_GEOMETRIA_VACIA' };
+    }
+
+    return {
+      ok: true,
+      fuente: FUENTE.OSRM,
+      esDistanciaPorCarretera: true,
+      geometria,
+      distancia: typeof ruta.distance === 'number' ? ruta.distance : longitudGeometria(geometria),
+      duracion: typeof ruta.duration === 'number' ? ruta.duration : duracionEstimadaSegundos(longitudGeometria(geometria))
+    };
+  } catch (err) {
+    let warning = 'FALLBACK_HAVERSINE_ERROR';
+    if (err && err.name === 'AbortError') {
+      warning = 'FALLBACK_HAVERSINE_TIMEOUT';
+    } else if (err && typeof err.message === 'string' && /network|fetch|failed/i.test(err.message)) {
+      warning = 'FALLBACK_HAVERSINE_RED';
+    }
+    return { ...respaldo(), warning };
+  } finally {
+    clearTimeout(t);
+  }
 }

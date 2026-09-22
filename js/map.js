@@ -12,6 +12,7 @@ const mapas = {};
 const capasUsuario = {};
 const puntosUsuario = {};
 const capasPedidos = {};
+const capasRuta = {};
 const PENDIENTE = 'pendiente';
 
 if (typeof L !== 'undefined') {
@@ -205,6 +206,64 @@ function recolectarPuntos(contenedorId) {
     puntos.push(puntoUsuario.getLatLng());
   }
   return puntos;
+}
+
+/* ---------------------- Polilínea de la ruta ---------------------- */
+
+/**
+ * Dibuja (o reemplaza) la polilínea de la ruta en un mapa.
+ * La geometría son pares [lat, lng] en orden de visita (origen primero).
+ * @param {string} contenedorId
+ * @param {Array<[number, number]>} geometria
+ */
+export function mostrarRutaEnMapa(contenedorId, geometria) {
+  const mapa = mapas[contenedorId];
+  if (!mapa) {
+    return;
+  }
+
+  if (capasRuta[contenedorId]) {
+    mapa.removeLayer(capasRuta[contenedorId]);
+    capasRuta[contenedorId] = null;
+  }
+
+  const validos = (geometria || []).filter(
+    (par) =>
+      Array.isArray(par) &&
+      par.length >= 2 &&
+      Number.isFinite(par[0]) &&
+      Number.isFinite(par[1])
+  );
+
+  if (validos.length < 2) {
+    return;
+  }
+
+  const polilinea = L.polyline(validos, {
+    color: '#0d9488',
+    weight: 4,
+    opacity: 0.85,
+    lineJoin: 'round',
+    lineCap: 'round',
+  });
+  polilinea.bindPopup('🏍️ Ruta sugerida');
+  polilinea.addTo(mapa);
+  capasRuta[contenedorId] = polilinea;
+}
+
+/**
+ * Quita la polilínea de un mapa (o de todos si no se pasa id).
+ * @param {string} [contenedorId]
+ */
+export function limpiarRutaEnMapa(contenedorId) {
+  const ids = contenedorId ? [contenedorId] : Object.keys(capasRuta);
+  ids.forEach((id) => {
+    const mapa = mapas[id];
+    if (mapa && capasRuta[id]) {
+      mapa.removeLayer(capasRuta[id]);
+      capasRuta[id] = null;
+    }
+  });
 }
 
 /**

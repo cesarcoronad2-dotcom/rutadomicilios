@@ -92,7 +92,7 @@
             <span class="stat-label">Pedidos</span>
           </div>
         </div>
-        <p class="ruta-nota">La ruta se calculará en fases posteriores.</p>
+        <p id="ruta-estado" class="ruta-estado">Activa tu ubicación para calcular la ruta.</p>
       </div>
 
       <div class="ruta-actions">
@@ -101,6 +101,28 @@
         </button>
         <button id="btn-navegacion" class="btn btn-primary btn-lg" type="button" disabled>
           🗺️ Abrir navegación
+        </button>
+      </div>
+    </section>
+
+    <!-- PASO 4: HISTORIAL -->
+    <section id="paso-historial" class="step hidden">
+      <div class="card hint-card">
+        <h2 class="card-title">🕘 Domicilios realizados</h2>
+        <p class="historial-intro">
+          Aquí quedan guardados los domicilios que enviaste al historial tras marcarlos como entregados.
+        </p>
+      </div>
+
+      <div id="historial-vacio" class="card empty-card">
+        <p>📭 Aún no hay domicilios en el historial.</p>
+      </div>
+
+      <div id="historialContainer" class="historial-container"></div>
+
+      <div class="pedidos-toolbar">
+        <button id="btn-limpiar-historial" class="btn btn-danger" type="button" disabled>
+          🗑️ Limpiar todo el historial
         </button>
       </div>
     </section>
@@ -118,6 +140,10 @@
     <button class="nav-btn" data-paso="paso-ruta" type="button">
       <span class="nav-icon">🗺️</span>
       <span class="nav-label">Ruta</span>
+    </button>
+    <button class="nav-btn" data-paso="paso-historial" type="button">
+      <span class="nav-icon">🕘</span>
+      <span class="nav-label">Historial</span>
     </button>
   </nav>
 

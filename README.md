@@ -40,9 +40,10 @@ Abre `http://localhost:8080` en el navegador.
 │   ├── gps.js          # Geolocation API
 │   ├── pedidos.js      # Administración de pedidos
 │   ├── ubicaciones.js  # Parser de ubicaciones pegadas
-│   ├── router.js       # Comunicación con OSRM
+│   ├── router.js       # Comunicación con OSRM (Tabla y Ruta)
 │   ├── optimizer.js    # Cálculo del orden de visita
-│   ├── map.js          # Mapa Leaflet
+│   ├── map.js          # Mapa Leaflet (marcadores, popups y ruta)
+│   ├── historial.js    # Historial de entregas
 │   └── storage.js      # localStorage
 ├── lib/leaflet/        # Leaflet vendorizado localmente
 └── README.md
@@ -56,8 +57,9 @@ Abre `http://localhost:8080` en el navegador.
 - **Fase 4 — Parser de ubicaciones** ✅ lista
 - **Fase 5 — Mapa (Leaflet): marcadores numerados y popups** ✅ lista
 - **Fase 6 — Matriz de tiempos/distancias (OSRM Table + fallback)** ✅ lista
-- **Fase 6b** (pendiente): optimizador que calcula el orden de visita con la matriz.
-- **Fases 7-11** (pendientes): ruta dibujada, entregas, recálculo, Google Maps y persistencia.
+- **Fase 6b — Optimizador del orden de visita (vecino más cercano)** ✅ lista
+- **Fase 7 — Ruta optimizada en el mapa (OSRM Route + fallback) y flujo de entregas con historial** ✅ lista: dibuja la polilínea de la ruta sobre el mapa (con el origen en tu GPS), muestra distancia/tiempo/pedidos, recalcula solo, habilita **Navegación con Google Maps**, permite marcar pedidos como entregados, devolverlos a pendientes o enviarlos al historial (con borrado individual y limpieza total).
+- **Fases 8-11** (pendientes): cambios de estado adicionales, exportación, sonidos o notificaciones y pulido final.
 
 ## Despliegue en GitHub Pages
 

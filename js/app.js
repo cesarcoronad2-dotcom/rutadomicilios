@@ -7,6 +7,7 @@
 
 import * as gps from './gps.js';
 import * as pedidos from './pedidos.js';
+import * as historial from './historial.js';
 import * as ubicaciones from './ubicaciones.js';
 import * as router from './router.js';
 import * as optimizer from './optimizer.js';
@@ -17,10 +18,14 @@ import * as storage from './storage.js';
 // Se guarda aquí (y también dentro de gps.js) para las siguientes fases.
 let miUbicacion = null;
 let gpsEnCurso = false;
+let rutaActiva = null;
+let calculoRutaEnCurso = null;
 
 function mostrarPaso(nombrePaso) {
   document.querySelectorAll('.step').forEach((step) => {
-    step.classList.toggle('active', step.id === nombrePaso);
+    const activo = step.id === nombrePaso;
+    step.classList.toggle('active', activo);
+    step.classList.toggle('hidden', !activo);
   });
   document.querySelectorAll('.nav-btn').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.paso === nombrePaso);
@@ -37,6 +42,7 @@ function guardarYRenderizar() {
   storage.guardarPedidos(pedidos.obtenerPedidos());
   renderizarPedidos();
   actualizarMapas();
+  actualizarRuta();
 }
 
 function contarConUbicacion(lista) {
@@ -178,12 +184,28 @@ function crearElementoTarjeta(pedidoObj) {
   const acciones = document.createElement('div');
   acciones.className = 'pedido-actions';
 
-  const btnEntregar = document.createElement('button');
-  btnEntregar.type = 'button';
-  btnEntregar.className = 'btn btn-entregar';
-  btnEntregar.classList.toggle('esta-entregado', estaEntregado);
-  btnEntregar.textContent = estaEntregado ? '↩️ Volver a pendiente' : '✓ Marcar como entregado';
-  btnEntregar.dataset.accion = 'entregar';
+  if (estaEntregado) {
+    const btnVolver = document.createElement('button');
+    btnVolver.type = 'button';
+    btnVolver.className = 'btn btn-volver';
+    btnVolver.textContent = '↩️ Volver a pendiente';
+    btnVolver.dataset.accion = 'volver-pendiente';
+    acciones.appendChild(btnVolver);
+
+    const btnHistorial = document.createElement('button');
+    btnHistorial.type = 'button';
+    btnHistorial.className = 'btn btn-enviar-historial';
+    btnHistorial.textContent = '📜 Enviar a historial';
+    btnHistorial.dataset.accion = 'enviar-historial';
+    acciones.appendChild(btnHistorial);
+  } else {
+    const btnEntregar = document.createElement('button');
+    btnEntregar.type = 'button';
+    btnEntregar.className = 'btn btn-entregar';
+    btnEntregar.textContent = '✓ Marcar como entregado';
+    btnEntregar.dataset.accion = 'completar';
+    acciones.appendChild(btnEntregar);
+  }
 
   const btnEliminar = document.createElement('button');
   btnEliminar.type = 'button';
@@ -191,8 +213,7 @@ function crearElementoTarjeta(pedidoObj) {
   btnEliminar.textContent = '🗑️';
   btnEliminar.title = 'Eliminar pedido';
   btnEliminar.dataset.accion = 'eliminar';
-
-  acciones.append(btnEntregar, btnEliminar);
+  acciones.appendChild(btnEliminar);
 
   tarjeta.append(header, campoDescripcion, campoUbicacion, campoCoords, acciones);
 
@@ -232,30 +253,41 @@ function actualizarEstadoUbicacion(tarjeta, pedidoObj, mensajeError) {
 
 function manejarCambioUbicacion(contenedor, evento) {
   const entrada = evento.target;
-  if (!entrada.dataset || entrada.dataset.campo !== 'ubicacionOriginal') {
+  if (!entrada.dataset || !entrada.dataset.campo) {
     return;
   }
   const tarjeta = entrada.closest('.pedido-card');
   if (!tarjeta) {
     return;
   }
-  const texto = entrada.value.trim();
-  const resultado = ubicaciones.parsearUbicacion(texto);
+  const id = tarjeta.dataset.id;
+  const campo = entrada.dataset.campo;
 
-  const cambios = { ubicacionOriginal: entrada.value };
-  if (resultado.ok) {
-    cambios.latitud = resultado.latitud;
-    cambios.longitud = resultado.longitud;
-  } else {
-    cambios.latitud = null;
-    cambios.longitud = null;
+  if (campo === 'ubicacionOriginal') {
+    const texto = entrada.value.trim();
+    const resultado = ubicaciones.parsearUbicacion(texto);
+
+    const cambios = { ubicacionOriginal: entrada.value };
+    if (resultado.ok) {
+      cambios.latitud = resultado.latitud;
+      cambios.longitud = resultado.longitud;
+    } else {
+      cambios.latitud = null;
+      cambios.longitud = null;
+    }
+
+    const actualizado = pedidos.actualizarPedido(id, cambios);
+    if (actualizado) {
+      storage.guardarPedidos(pedidos.obtenerPedidos());
+      actualizarEstadoUbicacion(tarjeta, actualizado, texto ? resultado.mensaje : undefined);
+      actualizarMapas();
+      actualizarRuta();
+    }
+    return;
   }
 
-  const actualizado = pedidos.actualizarPedido(tarjeta.dataset.id, cambios);
-  if (actualizado) {
-    storage.guardarPedidos(pedidos.obtenerPedidos());
-    actualizarEstadoUbicacion(tarjeta, actualizado, texto ? resultado.mensaje : undefined);
-    actualizarMapas();
+  if (campo === 'latitud' || campo === 'longitud') {
+    actualizarRuta();
   }
 }
 
@@ -342,9 +374,31 @@ function manejarClicEnTarjeta(contenedor, evento) {
   const id = tarjeta.dataset.id;
   const accion = boton.dataset.accion;
 
-  if (accion === 'entregar') {
-    pedidos.alternarEntregado(id);
+  if (accion === 'completar') {
+    pedidos.actualizarPedido(id, { estado: pedidos.ESTADO.ENTREGADO });
     guardarYRenderizar();
+  }
+
+  if (accion === 'volver-pendiente') {
+    pedidos.actualizarPedido(id, { estado: pedidos.ESTADO.PENDIENTE });
+    guardarYRenderizar();
+  }
+
+  if (accion === 'enviar-historial') {
+    const pedidoObj = pedidos.obtenerPedidos().find((p) => p.id === id);
+    if (!pedidoObj) {
+      return;
+    }
+    if (!window.confirm(`¿Enviar el PEDIDO #${pedidoObj.numero} al historial?`)) {
+      return;
+    }
+    historial.agregarDelPedido(pedidoObj);
+    pedidos.eliminarPedido(id);
+    storage.guardarPedidos(pedidos.obtenerPedidos());
+    renderizarPedidos();
+    actualizarMapas();
+    actualizarRuta();
+    renderizarHistorial();
   }
 
   if (accion === 'eliminar') {
@@ -389,6 +443,320 @@ function limpiarTodosLosPedidos() {
     storage.limpiarTodo();
     renderizarPedidos();
     actualizarMapas();
+    actualizarRuta();
+  }
+}
+
+/* ------------------------------ Ruta ------------------------------ */
+
+function formatearDistancia(metros) {
+  if (typeof metros !== 'number' || !Number.isFinite(metros) || metros < 0) {
+    return '—';
+  }
+  if (metros < 1000) {
+    return `${Math.round(metros)} m`;
+  }
+  return `${(metros / 1000).toFixed(1)} km`;
+}
+
+function formatearTiempo(segundos) {
+  if (typeof segundos !== 'number' || !Number.isFinite(segundos) || segundos < 0) {
+    return '—';
+  }
+  if (segundos < 60) {
+    return `${Math.round(segundos)} s`;
+  }
+  const minutos = Math.round(segundos / 60);
+  if (minutos < 60) {
+    return `${minutos} min`;
+  }
+  const horas = Math.floor(minutos / 60);
+  const resto = minutos % 60;
+  return resto > 0 ? `${horas} h ${resto} min` : `${horas} h`;
+}
+
+function pedidosPendientesConUbicacion() {
+  return pedidos
+    .obtenerPedidos()
+    .filter((p) => {
+      const pendiente = !p.estado || p.estado === pedidos.ESTADO.PENDIENTE;
+      return (
+        pendiente &&
+        typeof p.latitud === 'number' &&
+        typeof p.longitud === 'number' &&
+        Number.isFinite(p.latitud) &&
+        Number.isFinite(p.longitud)
+      );
+    });
+}
+
+function estadoDeRuta(mensaje) {
+  const elemento = document.getElementById('ruta-estado');
+  if (elemento) {
+    elemento.textContent = mensaje || '';
+  }
+}
+
+function restablecerResumenRuta() {
+  rutaActiva = null;
+  ['ruta-distancia', 'ruta-tiempo', 'ruta-pedidos'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.textContent = '—';
+    }
+  });
+  const navegacion = document.getElementById('btn-navegacion');
+  if (navegacion) {
+    navegacion.disabled = true;
+  }
+}
+
+/**
+ * Calcula y dibuja la ruta desde el GPS guardado pasando por los
+ * pedidos pendientes. Cancela cualquier cálculo anterior en curso.
+ */
+async function actualizarRuta() {
+  if (calculoRutaEnCurso) {
+    calculoRutaEnCurso.abort();
+  }
+  const controlador = new AbortController();
+  calculoRutaEnCurso = controlador;
+
+  restablecerResumenRuta();
+
+  const btnRecalcular = document.getElementById('btn-recalcular');
+  if (btnRecalcular) {
+    btnRecalcular.disabled = true;
+  }
+
+  try {
+    const posicion = gps.obtenerPosicionGuardada();
+    const pendientes = pedidosPendientesConUbicacion();
+
+    if (!posicion) {
+      estadoDeRuta('📍 Activa tu ubicación para calcular la ruta desde donde estás.');
+      map.limpiarRutaEnMapa();
+      return;
+    }
+
+    if (pendientes.length === 0) {
+      estadoDeRuta('📦 Sin pedidos pendientes con ubicación. La ruta se calcula sola al agregarlos.');
+      map.limpiarRutaEnMapa();
+      return;
+    }
+
+    estadoDeRuta('🔄 Calculando la ruta más eficiente…');
+
+    const matriz = await router.calcularMatriz({ posicion, pedidos: pendientes });
+    if (controlador.signal.aborted) {
+      return;
+    }
+
+    if (!matriz.ok) {
+      estadoDeRuta(`⚠️ ${matriz.mensaje || 'No se pudo calcular la matriz de tiempos.'}`);
+      return;
+    }
+
+    const orden = optimizer.calcularOrden({ puntos: matriz.puntos, matriz });
+    const puntosOrdenados = orden.map((indice) => matriz.puntos[indice]);
+
+    const ruta = await router.obtenerRuta(puntosOrdenados);
+    if (controlador.signal.aborted) {
+      return;
+    }
+
+    if (!ruta.ok) {
+      estadoDeRuta(`⚠️ ${ruta.mensaje || ruta.error || 'No se pudo calcular la ruta.'}`);
+      return;
+    }
+
+    if (ruta.geometria && ruta.geometria.length >= 2) {
+      map.mostrarRutaEnMapa('map', ruta.geometria);
+      map.mostrarRutaEnMapa('map-ruta', ruta.geometria);
+    }
+
+    rutaActiva = { posicion, puntosOrdenados };
+
+    const elDistancia = document.getElementById('ruta-distancia');
+    const elTiempo = document.getElementById('ruta-tiempo');
+    const elPedidos = document.getElementById('ruta-pedidos');
+    if (elDistancia) {
+      elDistancia.textContent = formatearDistancia(ruta.distancia);
+    }
+    if (elTiempo) {
+      elTiempo.textContent = formatearTiempo(ruta.duracion);
+    }
+    if (elPedidos) {
+      elPedidos.textContent = String(pendientes.length);
+    }
+
+    const navegacion = document.getElementById('btn-navegacion');
+    if (navegacion) {
+      navegacion.disabled = false;
+    }
+
+    estadoDeRuta(
+      ruta.esDistanciaPorCarretera
+        ? '✅ Distancia por carretera.'
+        : '⚠️ Sin datos de carretera: ruta en línea recta (usa Recalcular para reintentar).'
+    );
+  } catch (error) {
+    if (!controlador.signal.aborted) {
+      estadoDeRuta('⚠️ No se pudo calcular la ruta. Usa "Recalcular ruta" para reintentar.');
+    }
+  } finally {
+    if (btnRecalcular) {
+      btnRecalcular.disabled = false;
+    }
+  }
+}
+
+function abrirNavegacion() {
+  if (!rutaActiva) {
+    estadoDeRuta('📍 Establece tu ubicación y recalcula la ruta para poder abrir la navegación.');
+    return;
+  }
+  const pendientes = rutaActiva.puntosOrdenados.filter((p) => p.tipo === 'pedido');
+  if (pendientes.length === 0) {
+    return;
+  }
+  const posicion = rutaActiva.posicion;
+  const origin = `${posicion.latitude},${posicion.longitude}`;
+  const destino = `${pendientes[pendientes.length - 1].lat},${pendientes[pendientes.length - 1].lon}`;
+  const intermedios = pendientes
+    .slice(0, -1)
+    .map((p) => `${p.lat},${p.lon}`)
+    .join('|');
+  let url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destino}`;
+  if (intermedios) {
+    url += `&waypoints=${intermedios}`;
+  }
+  window.open(url, '_blank', 'noopener');
+}
+
+/* ------------------------------ Historial ------------------------------ */
+
+function crearElementoHistorial(entrada) {
+  const tarjeta = document.createElement('article');
+  tarjeta.className = 'historial-card';
+  tarjeta.dataset.id = entrada.id;
+
+  const header = document.createElement('header');
+  header.className = 'historial-header';
+
+  const titulo = document.createElement('span');
+  titulo.className = 'historial-titulo';
+  titulo.textContent = entrada.numero ? `📦 Domicilio #${entrada.numero}` : '📦 Domicilio realizado';
+  header.appendChild(titulo);
+
+  const badge = document.createElement('span');
+  badge.className = 'badge badge-entregado';
+  badge.textContent = 'ENTREGADO';
+  header.appendChild(badge);
+
+  tarjeta.appendChild(header);
+
+  if (entrada.descripcion) {
+    const descripcion = document.createElement('p');
+    descripcion.className = 'historial-descripcion';
+    descripcion.textContent = entrada.descripcion;
+    tarjeta.appendChild(descripcion);
+  }
+
+  const meta = document.createElement('div');
+  meta.className = 'historial-meta';
+
+  const chipFecha = document.createElement('span');
+  chipFecha.className = 'historial-chip';
+  chipFecha.textContent = `📅 ${entrada.fecha}`;
+  meta.appendChild(chipFecha);
+
+  const chipHora = document.createElement('span');
+  chipHora.className = 'historial-chip';
+  chipHora.textContent = `🕒 ${entrada.hora}`;
+  meta.appendChild(chipHora);
+
+  tarjeta.appendChild(meta);
+
+  if (entrada.ubicacionOriginal) {
+    const ubicacion = document.createElement('p');
+    ubicacion.className = 'historial-ubicacion';
+    ubicacion.textContent = entrada.ubicacionOriginal;
+    tarjeta.appendChild(ubicacion);
+  }
+
+  if (typeof entrada.latitud === 'number' && typeof entrada.longitud === 'number') {
+    const coords = document.createElement('p');
+    coords.className = 'historial-coords';
+    coords.textContent = `🌐 ${ubicaciones.formatearCoordenadas(entrada.latitud, entrada.longitud)}`;
+    tarjeta.appendChild(coords);
+  }
+
+  const acciones = document.createElement('div');
+  acciones.className = 'historial-actions';
+
+  const btnEliminar = document.createElement('button');
+  btnEliminar.type = 'button';
+  btnEliminar.className = 'btn btn-eliminar';
+  btnEliminar.textContent = '🗑️ Eliminar del historial';
+  btnEliminar.dataset.accion = 'eliminar-historial';
+  acciones.appendChild(btnEliminar);
+
+  tarjeta.appendChild(acciones);
+  return tarjeta;
+}
+
+function actualizarEstadoHistorialVacio() {
+  const entradaCount = historial.contarHistorial();
+  const vacio = document.getElementById('historial-vacio');
+  if (vacio) {
+    vacio.classList.toggle('hidden', entradaCount > 0);
+  }
+  const limpiar = document.getElementById('btn-limpiar-historial');
+  if (limpiar) {
+    limpiar.disabled = entradaCount === 0;
+  }
+}
+
+function renderizarHistorial() {
+  const contenedor = document.getElementById('historialContainer');
+  if (!contenedor) {
+    return;
+  }
+  contenedor.replaceChildren();
+  historial.obtenerHistorial().forEach((entrada) => {
+    contenedor.appendChild(crearElementoHistorial(entrada));
+  });
+  actualizarEstadoHistorialVacio();
+}
+
+function manejarClicEnHistorial(evento) {
+  const boton = evento.target.closest('[data-accion]');
+  if (!boton) {
+    return;
+  }
+  const tarjeta = boton.closest('.historial-card');
+  if (!tarjeta) {
+    return;
+  }
+  const accion = boton.dataset.accion;
+  const id = tarjeta.dataset.id;
+
+  if (accion === 'eliminar-historial') {
+    if (window.confirm('¿Eliminar este domicilio del historial?')) {
+      historial.eliminarEntrada(id);
+      renderizarHistorial();
+    }
+  }
+}
+
+function limpiarHistorialCompleto() {
+  if (historial.contarHistorial() === 0) {
+    return;
+  }
+  if (window.confirm('¿Borrar todo el historial de domicilios? Esta acción no se puede deshacer.')) {
+    historial.limpiarHistorial();
+    renderizarHistorial();
   }
 }
 
@@ -441,6 +809,7 @@ async function solicitarUbicacion() {
     map.mostrarUbicacionUsuario('map', posicion);
     map.mostrarUbicacionUsuario('map-ruta', posicion);
     actualizarMapas({ conVista: false });
+    actualizarRuta();
   } catch (error) {
     mostrarEstadoGps(`⚠️ ${error.message}`, 'error');
   } finally {
@@ -463,20 +832,31 @@ function conectarControles() {
     contenedor.addEventListener('change', (evento) => manejarCambioUbicacion(contenedor, evento));
   }
 
+  const contenedorHistorial = document.getElementById('historialContainer');
+  if (contenedorHistorial) {
+    contenedorHistorial.addEventListener('click', manejarClicEnHistorial);
+  }
+
   document.getElementById('btn-restar').addEventListener('click', quitarUltimoPedido);
   document.getElementById('btn-sumar').addEventListener('click', agregarNuevoPedido);
   document.getElementById('btn-limpiar').addEventListener('click', limpiarTodosLosPedidos);
+  document.getElementById('btn-limpiar-historial').addEventListener('click', limpiarHistorialCompleto);
 
   document.getElementById('btn-usar-ubicacion').addEventListener('click', solicitarUbicacion);
+  document.getElementById('btn-recalcular').addEventListener('click', actualizarRuta);
+  document.getElementById('btn-navegacion').addEventListener('click', abrirNavegacion);
 }
 
 function init() {
   const guardados = storage.cargarPedidos();
   pedidos.reemplazarPedidos(guardados);
+  historial.reemplazarHistorial(storage.cargarHistorial());
   inicializarMapas();
   conectarControles();
   renderizarPedidos();
+  renderizarHistorial();
   actualizarMapas();
+  actualizarRuta();
 }
 
 init();
