@@ -1,0 +1,599 @@
+/* ==========================================================================
+   RutaDomicilios — Hoja de estilos
+   Mobile-first: 360px / 390px / 430px primero, escritorio después.
+   ========================================================================== */
+
+:root {
+  --color-fondo: #f3f4f6;
+  --color-tarjeta: #ffffff;
+  --color-texto: #111827;
+  --color-texto-suave: #6b7280;
+  --color-primario: #10b981;
+  --color-primario-oscuro: #059669;
+  --color-secundario: #f59e0b;
+  --color-peligro: #ef4444;
+  --color-borde: #e5e7eb;
+  --radio: 14px;
+  --sombra: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --altura-boton: 52px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  min-height: 100vh;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--color-fondo);
+  color: var(--color-texto);
+  -webkit-font-smoothing: antialiased;
+  padding-bottom: 76px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ------------------------------ Header ------------------------------ */
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background: var(--color-primario);
+  color: #fff;
+  padding: 14px 16px;
+  padding-top: calc(14px + env(safe-area-inset-top));
+  box-shadow: var(--sombra);
+}
+
+.app-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+/* ------------------------------ Main ------------------------------ */
+
+.app-main {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 12px 12px 24px;
+  flex: 1;
+}
+
+.step {
+  display: none;
+}
+
+.step.active {
+  display: block;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* ------------------------------ Cards ------------------------------ */
+
+.card {
+  background: var(--color-tarjeta);
+  border-radius: var(--radio);
+  box-shadow: var(--sombra);
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.card-title {
+  margin: 0 0 10px;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+/* ------------------------------ Botones ------------------------------ */
+
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: var(--altura-boton);
+  padding: 0 20px;
+  border: none;
+  border-radius: 12px;
+  font-size: 1.02rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  text-decoration: none;
+  transition: transform 0.08s ease, opacity 0.15s ease;
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--color-primario);
+  color: #fff;
+}
+
+.btn-primary:active:not(:disabled) {
+  background: var(--color-primario-oscuro);
+}
+
+.btn-secondary {
+  background: var(--color-secundario);
+  color: #fff;
+}
+
+.btn-lg {
+  min-height: 56px;
+  font-size: 1.08rem;
+}
+
+.btn-control {
+  width: 56px;
+  min-height: 56px;
+  border-radius: 12px;
+  background: var(--color-primario);
+  color: #fff;
+  font-size: 1.6rem;
+  line-height: 1;
+  padding: 0;
+}
+
+/* ------------------------------ Paso 1: Inicio ------------------------------ */
+
+.hero-card {
+  padding: 20px 16px;
+  text-align: center;
+}
+
+.hero-subtitle {
+  margin: 0 0 16px;
+  font-size: 1.02rem;
+  color: var(--color-texto-suave);
+}
+
+.gps-estado {
+  margin: 12px 0 0;
+  font-size: 0.88rem;
+  color: var(--color-texto-suave);
+}
+
+.gps-estado.cargando {
+  color: #92400e;
+  font-weight: 600;
+}
+
+.gps-estado.ok {
+  color: var(--color-primario-oscuro);
+  font-weight: 600;
+}
+
+.gps-estado.error {
+  color: var(--color-peligro);
+  font-weight: 600;
+}
+
+.map-wrap {
+  position: relative;
+  margin-bottom: 12px;
+}
+
+#map {
+  height: 240px;
+  border-radius: var(--radio);
+  overflow: hidden;
+  border: 1px solid var(--color-borde);
+}
+
+.mapa-estado {
+  margin: 8px 2px 0;
+  font-size: 0.82rem;
+  color: var(--color-texto-suave);
+}
+
+.steps-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--color-texto-suave);
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+/* ------------------------------ Paso 2: Pedidos ------------------------------ */
+
+.counter-card {
+  text-align: center;
+}
+
+.counter-label {
+  margin: 0 0 12px;
+  font-weight: 600;
+}
+
+.counter-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+.counter-value {
+  font-size: 2.2rem;
+  font-weight: 700;
+  min-width: 56px;
+  text-align: center;
+}
+
+.pedidos-container {
+  margin-top: 4px;
+}
+
+.empty-card {
+  text-align: center;
+  color: var(--color-texto-suave);
+}
+
+.pedidos-toolbar {
+  margin-top: 8px;
+}
+
+.btn-danger {
+  background: #fef2f2;
+  color: var(--color-peligro);
+  border: 1px solid #fecaca;
+}
+
+.pedido-card {
+  background: var(--color-tarjeta);
+  border-radius: var(--radio);
+  box-shadow: var(--sombra);
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  border-left: 4px solid var(--color-primario);
+}
+
+.pedido-card.entregado {
+  opacity: 0.65;
+  border-left-color: #9ca3af;
+}
+
+.pedido-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.pedido-numero {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.badge {
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.badge-pendiente {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.badge-entregado {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+/* ------------------------- Marcadores y popups en el mapa ------------------------- */
+
+.pedido-marker-wrap {
+  background: transparent;
+  border: none;
+}
+
+.pedido-marker {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #3b82f6;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+.pedido-marker.entregado {
+  background: #9ca3af;
+  opacity: 0.85;
+}
+
+.pedido-popup {
+  min-width: 180px;
+}
+
+.pedido-popup-titulo {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.95rem;
+}
+
+.pedido-popup-descripcion {
+  margin: 0 0 6px;
+  font-size: 0.9rem;
+  color: var(--color-texto);
+  white-space: pre-wrap;
+}
+
+.pedido-popup-coords {
+  margin: 8px 0 0;
+  font-size: 0.8rem;
+  color: var(--color-texto-suave);
+}
+
+.pedido-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.pedido-campo label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-texto-suave);
+}
+
+.pedido-campo input[type="text"],
+.pedido-campo textarea {
+  width: 100%;
+  border: 1px solid var(--color-borde);
+  border-radius: 10px;
+  padding: 12px;
+  font-family: inherit;
+  font-size: 1rem;
+  color: var(--color-texto);
+  background: var(--color-tarjeta);
+}
+
+.pedido-campo input[type="text"]:focus,
+.pedido-campo textarea:focus {
+  outline: 2px solid var(--color-primario);
+  border-color: transparent;
+}
+
+.pedido-campo textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.pedido-coords {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.pedido-coords input[type="number"] {
+  width: 100%;
+  border: 1px solid var(--color-borde);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 0.95rem;
+}
+
+.pedido-coords input.invalido {
+  border-color: var(--color-peligro);
+  outline: none;
+}
+
+.pedido-actions {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.btn-entregar {
+  background: var(--color-primario);
+  color: #fff;
+  font-size: 0.95rem;
+}
+
+.btn-entregar.esta-entregado {
+  background: #e5e7eb;
+  color: var(--color-texto);
+}
+
+.btn-eliminar {
+  background: #fef2f2;
+  color: var(--color-peligro);
+  border: 1px solid #fecaca;
+  width: 52px;
+  min-height: 48px;
+  padding: 0;
+}
+
+.pedido-nota {
+  margin: 2px 0 8px;
+  font-size: 0.78rem;
+  color: var(--color-texto-suave);
+}
+
+.ubicacion-estado {
+  margin: 6px 0 0;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.ubicacion-estado.ok {
+  color: var(--color-primario-oscuro);
+}
+
+.ubicacion-estado.error {
+  color: var(--color-peligro);
+}
+
+.ubicacion-estado.vacio {
+  color: var(--color-texto-suave);
+  font-weight: 400;
+}
+
+/* ------------------------------ Paso 3: Ruta ------------------------------ */
+
+.map-wrap-main {
+  margin-bottom: 12px;
+}
+
+#map-ruta {
+  height: 300px;
+  border-radius: var(--radio);
+  overflow: hidden;
+  border: 1px solid var(--color-borde);
+}
+
+.ruta-resumen {
+  text-align: center;
+}
+
+.ruta-stats {
+  display: flex;
+  justify-content: space-around;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+}
+
+.stat-icon {
+  font-size: 1.3rem;
+}
+
+.stat-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 2px 0;
+}
+
+.stat-label {
+  font-size: 0.82rem;
+  color: var(--color-texto-suave);
+}
+
+.ruta-nota {
+  margin: 8px 0 0;
+  font-size: 0.88rem;
+  color: var(--color-texto-suave);
+}
+
+.ruta-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ------------------------------ Navegación inferior ------------------------------ */
+
+.bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1001;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  background: var(--color-tarjeta);
+  border-top: 1px solid var(--color-borde);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.nav-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 10px 4px;
+  border: none;
+  background: transparent;
+  color: var(--color-texto-suave);
+  font-family: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.nav-btn.active {
+  color: var(--color-primario-oscuro);
+  font-weight: 700;
+}
+
+.nav-icon {
+  font-size: 1.25rem;
+}
+
+/* ------------------------------ Estados de Leaflet ------------------------------ */
+
+.leaflet-container {
+  font-family: inherit;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 10px;
+}
+
+/* ------------------------------ Escritorio ------------------------------ */
+
+@media (min-width: 768px) {
+  body {
+    padding-bottom: 24px;
+  }
+
+  .app-main {
+    padding-top: 24px;
+  }
+
+  .bottom-nav {
+    position: static;
+    border-top: none;
+    max-width: 480px;
+    margin: 0 auto;
+    width: 100%;
+    border-radius: var(--radio);
+    box-shadow: var(--sombra);
+    margin-bottom: 16px;
+  }
+}

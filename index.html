@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#10b981">
+  <meta name="description" content="RutaDomicilios: organiza tus domicilios y encuentra una ruta eficiente.">
+  <title>RutaDomicilios</title>
+
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚴</text></svg>">
+
+  <link rel="stylesheet" href="lib/leaflet/css/leaflet.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <h1 class="app-title">🚴 RutaDomicilios</h1>
+  </header>
+
+  <main class="app-main">
+    <!-- PASO 1: INICIO -->
+    <section id="paso-inicio" class="step active">
+      <div class="hero-card card">
+        <p class="hero-subtitle">Organiza tus domicilios y encuentra una ruta eficiente.</p>
+        <button id="btn-usar-ubicacion" class="btn btn-primary btn-lg" type="button">
+          📍 Usar mi ubicación actual
+        </button>
+        <p id="gps-estado" class="gps-estado">Toca el botón para activar el GPS.</p>
+      </div>
+
+      <div class="map-wrap">
+        <div id="map"></div>
+        <p id="mapa-estado" class="mapa-estado"></p>
+      </div>
+
+      <div class="card hint-card">
+        <h2 class="card-title">¿Cómo funciona?</h2>
+        <ol class="steps-list">
+          <li>Activa tu ubicación y agrega tus pedidos.</li>
+          <li>Pega la ubicación que te envió el cliente por WhatsApp.</li>
+          <li>Calcula la ruta y navega con Google Maps.</li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- PASO 2: PEDIDOS -->
+    <section id="paso-pedidos" class="step hidden">
+      <div class="counter-card card">
+        <p class="counter-label">Pedidos en tu reparto</p>
+        <div class="counter-controls">
+          <button id="btn-restar" class="btn btn-control" type="button" aria-label="Quitar último pedido">−</button>
+          <span id="n-pedidos-display" class="counter-value">0</span>
+          <button id="btn-sumar" class="btn btn-control" type="button" aria-label="Agregar pedido">+</button>
+        </div>
+      </div>
+
+      <div id="pedidos-vacio" class="card empty-card">
+        <p>📦 Aún no tienes pedidos. Toca <strong>+</strong> para agregar el primero.</p>
+      </div>
+
+      <div id="pedidosContainer" class="pedidos-container"></div>
+
+      <div class="pedidos-toolbar">
+        <button id="btn-limpiar" class="btn btn-danger" type="button" disabled>
+          🗑️ Limpiar todos los pedidos
+        </button>
+      </div>
+    </section>
+
+    <!-- PASO 3: RUTA -->
+    <section id="paso-ruta" class="step hidden">
+      <div class="map-wrap map-wrap-main">
+        <div id="map-ruta"></div>
+      </div>
+
+      <div class="card ruta-resumen">
+        <h2 class="card-title">Ruta calculada</h2>
+        <div class="ruta-stats">
+          <div class="stat">
+            <span class="stat-icon">📏</span>
+            <span class="stat-value" id="ruta-distancia">—</span>
+            <span class="stat-label">Distancia</span>
+          </div>
+          <div class="stat">
+            <span class="stat-icon">⏱️</span>
+            <span class="stat-value" id="ruta-tiempo">—</span>
+            <span class="stat-label">Tiempo</span>
+          </div>
+          <div class="stat">
+            <span class="stat-icon">📦</span>
+            <span class="stat-value" id="ruta-pedidos">—</span>
+            <span class="stat-label">Pedidos</span>
+          </div>
+        </div>
+        <p class="ruta-nota">La ruta se calculará en fases posteriores.</p>
+      </div>
+
+      <div class="ruta-actions">
+        <button id="btn-recalcular" class="btn btn-secondary btn-lg" type="button" disabled>
+          🔄 Recalcular ruta
+        </button>
+        <button id="btn-navegacion" class="btn btn-primary btn-lg" type="button" disabled>
+          🗺️ Abrir navegación
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <nav class="bottom-nav" aria-label="Navegación principal">
+    <button class="nav-btn active" data-paso="paso-inicio" type="button">
+      <span class="nav-icon">📍</span>
+      <span class="nav-label">Inicio</span>
+    </button>
+    <button class="nav-btn" data-paso="paso-pedidos" type="button">
+      <span class="nav-icon">📦</span>
+      <span class="nav-label">Pedidos</span>
+    </button>
+    <button class="nav-btn" data-paso="paso-ruta" type="button">
+      <span class="nav-icon">🗺️</span>
+      <span class="nav-label">Ruta</span>
+    </button>
+  </nav>
+
+  <script src="lib/leaflet/js/leaflet.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
